@@ -5,9 +5,11 @@
         <title>CS 4731 Final Project Part I</title>
         <script id="vshader" type="x-shader/x-vertex">
             attribute vec4 vPosition;
-
+            uniform mat4 projectionMatrix;
+            uniform mat4 modelViewMatrix;
+            attribute vec4 vNormal;
             void main() {
-                gl_Position = vPosition;
+                gl_Position = projectionMatrix * vPosition;
             }
         </script>
 

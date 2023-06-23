@@ -1,9 +1,24 @@
+let vBuffer;
+let vNormal;
+let gl;
+let vPosition;
+let eye;
+var at = vec3(0.0, 0.0, 0.0);
+var up = vec3(0.0, 0.0, 0.0);
+let modelViewMatrix;
+let projectionMatrix;
+let modelViewMatrixLoc, projectionMatrixLoc;
+var near = .1;
+var far = 100;
+let program;
+let pointsArray, normalsArray;
+let vNormalPosition;
 function main() {
     // Retrieve <canvas> element
     let canvas = document.getElementById('webgl');
 
     // Get the rendering context for WebGL
-    let gl = WebGLUtils.setupWebGL(canvas, undefined);
+    gl = WebGLUtils.setupWebGL(canvas, undefined);
 
     //Check that the return value is not null.
     if (!gl) {
@@ -18,7 +33,7 @@ function main() {
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
     // Initialize shaders
-    let program = initShaders(gl, "vshader", "fshader");
+    program = initShaders(gl, "vshader", "fshader");
     gl.useProgram(program);
 
     // Get the stop sign
@@ -45,4 +60,48 @@ function main() {
     let bunny = new Model(
         "https://web.cs.wpi.edu/~jmcuneo/cs4731/project3/bunny.obj",
         "https://web.cs.wpi.edu/~jmcuneo/cs4731/project3/bunny.mtl");
+
+
+    eye = vec3(0,0,0);
+    modelViewMatrix = lookAt(eye, at , up);
+    var fovy = 30;
+    projectionMatrix = perspective(fovy,1,near,far);
+    modelViewMatrixLoc = gl.getUniformLocation( program, "modelViewMatrix" );
+    projectionMatrixLoc = gl.getUniformLocation( program, "projectionMatrix" );
+    gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix) );
+    gl.uniformMatrix4fv(projectionMatrixLoc, false, flatten(projectionMatrix) );
+
+    vPosition = gl.getAttribLocation( program, "vPosition");
+    vNormalPosition = gl.getAttribLocation( program, "vNormal");
+    loadObj(stopSign);
+}
+
+
+function loadObj(curObj){
+    pointsArray = [];
+    normalsArray = [];
+    //putInArrays(curObj);
+
+    vBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(pointsArray), gl.STATIC_DRAW);
+
+    gl.vertexAttribPointer(vPosition, 4, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(vPosition);
+
+    vNormal = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vNormal);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(normalsArray), gl.STATIC_DRAW);
+
+    gl.vertexAttribPointer(vNormalPosition, 4, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(vNormalPosition);
+    gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.drawArrays(gl.LINES, 0, pointsArray.length);
+}
+function putInArrays(curObj){
+    for(let i=0; i<curObj.faces.length; i++){
+       let curFaces=curObj.faces;
+        pointsArray.push(curFaces[i].faceVertices);
+        normalsArray.push(curFaces[i].faceNormals);
+    }
 }
