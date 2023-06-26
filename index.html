@@ -4,10 +4,12 @@
         <meta charset="UTF-8">
         <title>CS 4731 Final Project Part I</title>
         <script id="vshader" type="x-shader/x-vertex">
-            attribute vec4 vPosition, vNormal, matDiffuse, matSpecular;
+            attribute vec4 vPosition, vNormal;
+            uniform vec4 matDiffuse, matSpecular;
+            attribute vec2 vTexture;
 
             uniform float onlyAmbient;
-            uniform mat4 projectionMatrix, modelViewMatrix, translate;
+            uniform mat4 projectionMatrix, modelViewMatrix;
             uniform float drawFlag;
             uniform vec4 lightPosition, lightAmbient, lightDiffuse, lightSpecular;
 
@@ -15,6 +17,7 @@
             varying float fragFlag;
             varying vec4 diffuseProduct, specularProduct, ambientProduct;
             varying float onlyAmbientFrag;
+            varying vec2 texCoords;
 
             void calculateLight(){
                 if(onlyAmbient == 0.0){
@@ -29,28 +32,23 @@
             }
 
             void main() {
-                ambientProduct = lightAmbient * vec4(0.3, 0.5, 0.6, 1.0);
+                ambientProduct = lightAmbient * vec4(0.3, 0.3, 0.3, 1.0);
                 calculateLight();
+                texCoords = vTexture;
+                fragFlag=drawFlag;
                 if(drawFlag == 5.0){
-                    calculateLight();
-                    fragFlag=drawFlag;
-                    gl_Position = projectionMatrix * modelViewMatrix * translate * vPosition;
+                    gl_Position = projectionMatrix * modelViewMatrix * vPosition;
                 }
                 if(drawFlag == 4.0){
-                    calculateLight();
-                    fragFlag=drawFlag;
                     gl_Position = projectionMatrix * modelViewMatrix * vPosition;
                 }
                 if(drawFlag == 3.0){
-                    fragFlag=drawFlag;
                     gl_Position = projectionMatrix * modelViewMatrix * vPosition;
                 }
                 if(drawFlag == 2.0){
-                   fragFlag=drawFlag;
                    gl_Position = projectionMatrix * modelViewMatrix * vPosition;
                 }
                 if(drawFlag == 1.0){
-                    fragFlag=drawFlag;
                     gl_Position = projectionMatrix * modelViewMatrix * vPosition;
                 }
             }
@@ -63,46 +61,55 @@
             varying vec3 L, N, V;
             varying vec4 diffuseProduct, specularProduct, ambientProduct;
             varying float onlyAmbientFrag;
+            varying vec2 texCoords;
 
-            void calculateAndDrawWithLight(){
+            uniform sampler2D texStreet;
+            uniform sampler2D texSign;
+            uniform sampler2D texLamp;
+            uniform sampler2D texCar;
+            uniform sampler2D texBunnicula;
+
+            uniform float textured;
+
+            void calculateAndDrawWithLight(sampler2D texture){
                 vec4 diffuse = diffuseProduct * dot(L, N);
                 vec3 R = (2.0 * dot(L, N) * N) - L;
                 vec4 specular = specularProduct * pow(max(dot(V, R), 0.0), 30.0);
                 vec4 fColor = diffuse + specular + ambientProduct;
                 fColor.a = 1.0;
-                gl_FragColor = fColor;
+                gl_FragColor = textured == 0.0 ? fColor: texture2D(texture, texCoords) * fColor;
             }
 
             void main() {
                     if(fragFlag == 5.0){
                         if(onlyAmbientFrag == 0.0)
-                            calculateAndDrawWithLight();
+                            calculateAndDrawWithLight(texSign);
                         else
-                            gl_FragColor = ambientProduct;
+                            gl_FragColor = textured == 0.0 ? ambientProduct: texture2D(texSign, texCoords) * ambientProduct;
                     }
                     if(fragFlag == 4.0){
                         if(onlyAmbientFrag == 0.0)
-                            calculateAndDrawWithLight();
+                            calculateAndDrawWithLight(texStreet);
                         else
-                            gl_FragColor = ambientProduct;
+                            gl_FragColor = textured == 0.0 ? ambientProduct: texture2D(texStreet, texCoords) * ambientProduct;
                     }
                     if(fragFlag == 3.0){
                         if(onlyAmbientFrag == 0.0)
-                            calculateAndDrawWithLight();
+                            calculateAndDrawWithLight(texCar);
                         else
-                            gl_FragColor = ambientProduct;
+                            gl_FragColor = textured == 0.0 ? ambientProduct: texture2D(texCar, texCoords) * ambientProduct;
                     }
                     if(fragFlag == 2.0){
                         if(onlyAmbientFrag == 0.0)
-                            calculateAndDrawWithLight();
+                            calculateAndDrawWithLight(texLamp);
                         else
-                            gl_FragColor = ambientProduct;
+                            gl_FragColor = textured == 0.0 ? ambientProduct: texture2D(texLamp, texCoords) * ambientProduct;
                     }
                     if(fragFlag == 1.0){
-                        if(onlyAmbientFrag == 1.0)
-                            calculateAndDrawWithLight();
+                        if(onlyAmbientFrag == 0.0)
+                            calculateAndDrawWithLight(texBunnicula);
                         else
-                            gl_FragColor = ambientProduct;
+                            gl_FragColor = textured == 0.0 ? ambientProduct: texture2D(texBunnicula, texCoords) * ambientProduct;
                     }
             }
         </script>
