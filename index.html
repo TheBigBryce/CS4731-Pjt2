@@ -4,63 +4,107 @@
         <meta charset="UTF-8">
         <title>CS 4731 Final Project Part I</title>
         <script id="vshader" type="x-shader/x-vertex">
-            attribute vec4 vPositionSign;
-            attribute vec4 vNormalSign;
-            attribute vec4 vPositionCar;
-            attribute vec4 vNormalCar;
-            attribute vec4 vPositionBunnicula;
-            attribute vec4 vNormalBunnicula;
-            attribute vec4 vPositionStreet;
-            attribute vec4 vNormalStreet;
-            attribute vec4 vPositionLamp;
-            attribute vec4 vNormalLamp;
-            uniform mat4 projectionMatrix;
-            uniform mat4 modelViewMatrix;
+            attribute vec4 vPosition, vNormal, matDiffuse, matSpecular;
+
+            uniform float onlyAmbient;
+            uniform mat4 projectionMatrix, modelViewMatrix, translate;
             uniform float drawFlag;
-            uniform mat4 translate;
+            uniform vec4 lightPosition, lightAmbient, lightDiffuse, lightSpecular;
+
+            varying vec3 L, N, V;
+            varying float fragFlag;
+            varying vec4 diffuseProduct, specularProduct, ambientProduct;
+            varying float onlyAmbientFrag;
+
+            void calculateLight(){
+                if(onlyAmbient == 0.0){
+                    specularProduct = lightSpecular * matSpecular;
+                    diffuseProduct = lightDiffuse * matDiffuse;
+                    vec3 pos = (modelViewMatrix * vPosition).xyz;
+                    N = normalize(modelViewMatrix * vNormal).xyz;
+                    L = normalize(lightPosition.xyz - pos);
+                    V =  normalize(-pos);
+                }
+                onlyAmbientFrag = onlyAmbient;
+            }
 
             void main() {
+                ambientProduct = lightAmbient * vec4(0.3, 0.5, 0.6, 1.0);
+                calculateLight();
                 if(drawFlag == 5.0){
-                gl_Position = projectionMatrix * modelViewMatrix * translate * vPositionSign;
+                    calculateLight();
+                    fragFlag=drawFlag;
+                    gl_Position = projectionMatrix * modelViewMatrix * translate * vPosition;
                 }
                 if(drawFlag == 4.0){
-                 gl_Position = projectionMatrix * modelViewMatrix * vPositionCar;
+                    calculateLight();
+                    fragFlag=drawFlag;
+                    gl_Position = projectionMatrix * modelViewMatrix * vPosition;
                 }
                 if(drawFlag == 3.0){
-                gl_Position = projectionMatrix * modelViewMatrix * vPositionLamp;
+                    fragFlag=drawFlag;
+                    gl_Position = projectionMatrix * modelViewMatrix * vPosition;
                 }
                 if(drawFlag == 2.0){
-                gl_Position = projectionMatrix * modelViewMatrix * vPositionStreet;
+                   fragFlag=drawFlag;
+                   gl_Position = projectionMatrix * modelViewMatrix * vPosition;
                 }
                 if(drawFlag == 1.0){
-                gl_Position = projectionMatrix * modelViewMatrix * translate * vPositionBunnicula;
+                    fragFlag=drawFlag;
+                    gl_Position = projectionMatrix * modelViewMatrix * vPosition;
                 }
-
             }
+
         </script>
 
         <script id="fshader" type="x-shader/x-fragment">
             precision mediump float;
-            uniform float drawFlag2;
+            varying float fragFlag;
+            varying vec3 L, N, V;
+            varying vec4 diffuseProduct, specularProduct, ambientProduct;
+            varying float onlyAmbientFrag;
+
+            void calculateAndDrawWithLight(){
+                vec4 diffuse = diffuseProduct * dot(L, N);
+                vec3 R = (2.0 * dot(L, N) * N) - L;
+                vec4 specular = specularProduct * pow(max(dot(V, R), 0.0), 30.0);
+                vec4 fColor = diffuse + specular + ambientProduct;
+                fColor.a = 1.0;
+                gl_FragColor = fColor;
+            }
+
             void main() {
-            if(drawFlag2 == 5.0){
-
-                    gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-                }
-                if(drawFlag2 == 4.0){
-
-                    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-                }
-                if(drawFlag2 == 3.0){
-                 gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
-                }
-                if(drawFlag2 == 2.0){
-                gl_FragColor = vec4(0.0, 0.0, 1.0, 1.0);
-                }
-                if(drawFlag2 == 1.0){
-                gl_FragColor = vec4(0.71, 0.13, 0.74, 1.0);
-                }
-                }
+                    if(fragFlag == 5.0){
+                        if(onlyAmbientFrag == 0.0)
+                            calculateAndDrawWithLight();
+                        else
+                            gl_FragColor = ambientProduct;
+                    }
+                    if(fragFlag == 4.0){
+                        if(onlyAmbientFrag == 0.0)
+                            calculateAndDrawWithLight();
+                        else
+                            gl_FragColor = ambientProduct;
+                    }
+                    if(fragFlag == 3.0){
+                        if(onlyAmbientFrag == 0.0)
+                            calculateAndDrawWithLight();
+                        else
+                            gl_FragColor = ambientProduct;
+                    }
+                    if(fragFlag == 2.0){
+                        if(onlyAmbientFrag == 0.0)
+                            calculateAndDrawWithLight();
+                        else
+                            gl_FragColor = ambientProduct;
+                    }
+                    if(fragFlag == 1.0){
+                        if(onlyAmbientFrag == 1.0)
+                            calculateAndDrawWithLight();
+                        else
+                            gl_FragColor = ambientProduct;
+                    }
+            }
         </script>
 
         <script type="text/javascript" src="lib/webgl-utils.js"></script>

@@ -1,14 +1,18 @@
 let gl;
-let vBufferSign,vNormalSign,vPositionSign,vNormalPositionSign, pointsArraySign = [], normalsArraySign = [];
-let vBufferCar,vNormalCar,vPositionCar,vNormalPositionCar, pointsArrayCar = [], normalsArrayCar = [];
-let vBufferLamp,vNormalLamp,vPositionLamp,vNormalPositionLamp, pointsArrayLamp = [], normalsArrayLamp = [];
-let vBufferBunnicula,vNormalBunnicula,vPositionBunnicula,vNormalPositionBunnicula, pointsArrayBunnicula = [], normalsArrayBunnicula = [];
-let vBufferStreet,vNormalStreet,vPositionStreet,vNormalPositionStreet, pointsArrayStreet = [], normalsArrayStreet = [];
+let vBuffer,vNormalBuffer,vPosition,vNormalPosition;
+let pointsArray = [], normalsArray = [], faceLengths = [], matDiffuses = [], matSpeculars = [];
+let numFacesB4NextObj = [];
+let numDrawn=0;
+let numObjloaded=0;
 
+var lightPosition = vec4(0.0, 3.0, 0.0, 1.0 );
+var lightAmbient = vec4(0.2, 0.2, 0.2, 1.0 );
+var lightDiffuse = vec4( 1.0, 1.0, 1.0, 1.0 );
+var lightSpecular = vec4( 1.0, 1.0, 1.0, 1.0 );
 
 let ctMatrixLoc;
 let eye;
-var at = vec3(3.0, 0.0, 0.0);
+var at = vec3(0.0, 0.0, 0.0);
 var up = vec3(0.0, 1.0, 0.0);
 let modelViewMatrix;
 let projectionMatrix;
@@ -16,6 +20,13 @@ let modelViewMatrixLoc, projectionMatrixLoc;
 var near = .1;
 var far = 100;
 let program;
+
+let cameraX = 13;
+let cameraY = 10;
+let theta = 0;
+let animateCamera = false;
+let onlyAmbient = 0.0;
+let lightChange=false;
 
 // Get the stop sign
 let stopSign = new Model(
@@ -45,6 +56,7 @@ function main() {
     // Retrieve <canvas> element
     let canvas = document.getElementById('webgl');
 
+    window.addEventListener('keypress',onKeyPress,false);
     // Get the rendering context for WebGL
     gl = WebGLUtils.setupWebGL(canvas, undefined);
 
@@ -67,27 +79,26 @@ function main() {
 
 
 
-    eye = vec3(10,30,10);
+    eye = vec3(cameraX,cameraY,0);
     modelViewMatrix = lookAt(eye, at , up);
     var fovy = 30;
     projectionMatrix = perspective(fovy,1,near,far);
     modelViewMatrixLoc = gl.getUniformLocation( program, "modelViewMatrix" );
     projectionMatrixLoc = gl.getUniformLocation( program, "projectionMatrix" );
+    ctMatrixLoc = gl.getUniformLocation(program, "translate");
     gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix) );
     gl.uniformMatrix4fv(projectionMatrixLoc, false, flatten(projectionMatrix) );
 
-    ctMatrixLoc = gl.getUniformLocation(program, "translate");
+    //setting up light uniforms
+    gl.uniform4fv(gl.getUniformLocation(program, "lightPosition"), flatten(lightPosition));
+    gl.uniform4fv(gl.getUniformLocation(program, "lightDiffuse"), flatten(lightDiffuse));
+    gl.uniform4fv(gl.getUniformLocation(program, "lightSpecular"), flatten(lightSpecular));
+    gl.uniform4fv(gl.getUniformLocation(program, "lightAmbient"), flatten(lightAmbient));
+    gl.uniform1f(gl.getUniformLocation(program, "onlyAmbient"), onlyAmbient);
 
-    vPositionSign = gl.getAttribLocation( program, "vPositionSign");
-    vNormalPositionSign = gl.getAttribLocation( program, "vNormalSign");
-    vPositionCar = gl.getAttribLocation( program, "vPositionCar");
-    vNormalPositionCar = gl.getAttribLocation( program, "vNormalCar");
-    vPositionStreet = gl.getAttribLocation( program, "vPositionStreet");
-    vNormalPositionStreet = gl.getAttribLocation( program, "vNormalStreet");
-    vPositionBunnicula = gl.getAttribLocation( program, "vPositionBunnicula");
-    vNormalPositionBunnicula = gl.getAttribLocation( program, "vNormalBunnicula");
-    vPositionLamp = gl.getAttribLocation( program, "vPositionLamp");
-    vNormalPositionLamp = gl.getAttribLocation( program, "vNormalLamp");
+    //Getting the location of attributes in the index.html for all objects
+    vPosition = gl.getAttribLocation( program, "vPosition");
+    vNormalPosition = gl.getAttribLocation( program, "vNormal");
 
    render();
 }
@@ -95,166 +106,121 @@ function main() {
 
 var id;
 function render(){
+    numDrawn=0;
     gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.uniformMatrix4fv(ctMatrixLoc, false, flatten(translate(1,1,1)));
-    gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),5.0);
-    gl.uniform1f(gl.getUniformLocation(program,"drawFlag2"),5.0);
-    if(stopSign.objParsed && stopSign.mtlParsed && !stopSign.loaded){
-        loadStopSign(stopSign);
-        stopSign.loaded=true;
-    }
-    gl.drawArrays(gl.TRIANGLES, 0, pointsArraySign.length);
+    gl.uniformMatrix4fv(ctMatrixLoc, false, flatten(translate(3,1,1)));
 
-    gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),4.0);
-    gl.uniform1f(gl.getUniformLocation(program,"drawFlag2"),4.0);
-    if(car.objParsed && car.mtlParsed && !car.loaded){
-        loadCar(car);
-        car.loaded=true;
+    if(lightChange){
+        gl.uniform1f(gl.getUniformLocation(program, "onlyAmbient"), onlyAmbient);
+        lightChange=false;
     }
-    gl.drawArrays(gl.TRIANGLES, 0, pointsArrayCar.length);
-
-    gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),3.0);
-    gl.uniform1f(gl.getUniformLocation(program,"drawFlag2"),3.0);
-    if(lamp.objParsed && lamp.mtlParsed && !lamp.loaded){
-        loadLamp(lamp);
-        lamp.loaded=true;
+    //rotate camera
+    if(animateCamera){
+        theta+=0.0075;
+        eye = vec3(cameraX* Math.cos(theta), cameraY + 2 *Math.cos(theta), cameraX * Math.sin(theta));
+        modelViewMatrix = lookAt(eye, at , up);
+        gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix));
     }
-    gl.drawArrays(gl.TRIANGLES, 0, pointsArrayLamp.length);
 
-    gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),2.0);
-    gl.uniform1f(gl.getUniformLocation(program,"drawFlag2"),2.0);
-    if(street.objParsed && street.mtlParsed && !street.loaded){
-        loadStreet(street);
-        street.loaded=true;
-    }
-    gl.drawArrays(gl.TRIANGLES, 0, pointsArrayStreet.length);
+    //Load and draw stop Sign
+    checkObjandLoad(stopSign);
+    checkObjandLoad(street);
+    checkObjandLoad(car);
+    checkObjandLoad(lamp);
+    checkObjandLoad(bunnicula);
 
-    gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),1.0);
-    gl.uniform1f(gl.getUniformLocation(program,"drawFlag2"),1.0);
-    if(bunnicula.objParsed && bunnicula.mtlParsed && !bunnicula.loaded){
-        loadBunnicula(bunnicula);
-        bunnicula.loaded=true;
-    }
-    gl.drawArrays(gl.TRIANGLES, 0, pointsArrayBunnicula.length);
 
+
+    drawObj(4);
     id = requestAnimationFrame(render);
 }
 
+function checkObjandLoad(curObj){
+    if(curObj.objParsed && curObj.mtlParsed && !curObj.loaded){
+        for(let i=0; i<curObj.faces.length; i++){
+            let curFace = curObj.faces[i];
+            for(let j=0; j<curFace.faceVertices.length; j++) {
+                pointsArray.push(curFace.faceVertices[j]);
+                normalsArray.push(curFace.faceNormals[j]);
 
-function loadStopSign(curObj){
-    for(let i=0; i<curObj.faces.length; i++){
-        let curFace = curObj.faces[i];
-        for(let j=0; j<curFace.faceVertices.length; j++) {
-            pointsArraySign.push(curFace.faceVertices[j]);
-            normalsArraySign.push(curFace.faceNormals[j]);
+            }
+            let currentDiffuse = curObj.diffuseMap.get(curFace.material);
+            let currentSpecular = curObj.specularMap.get(curFace.material);
+            faceLengths.push (curFace.faceVertices.length);
+            matDiffuses.push (vec4(currentDiffuse[0],currentDiffuse[1],currentDiffuse[2],currentDiffuse[3]));
+            matSpeculars.push (vec4(currentSpecular[0],currentSpecular[1],currentSpecular[2],currentSpecular[3]));
+        }
+        curObj.loaded=true;
+        numObjloaded+=1;
+        if(numFacesB4NextObj.length===0)
+            numFacesB4NextObj[0]=curObj.faces.length;
+        else
+            numFacesB4NextObj.push(curObj.faces.length+numFacesB4NextObj[numFacesB4NextObj.length-1]);
+        if(numObjloaded===5){
+            loadBuffer();
         }
     }
-    vBufferSign = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vBufferSign);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(pointsArraySign), gl.STATIC_DRAW);
-
-    gl.vertexAttribPointer(vPositionSign, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vPositionSign);
-
-    vNormalSign = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vNormalSign);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(normalsArraySign), gl.STATIC_DRAW);
-
-    gl.vertexAttribPointer(vNormalPositionSign, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vNormalPositionSign);
 }
 
-function loadCar(curObj){
-    for(let i=0; i<curObj.faces.length; i++){
-        let curFace = curObj.faces[i];
-        for(let j=0; j<curFace.faceVertices.length; j++) {
-            pointsArrayCar.push(curFace.faceVertices[j]);
-            normalsArrayCar.push(curFace.faceNormals[j]);
+function drawObj(objNum){
+    let drawFlagVal=5.0;
+    let numLoaded = 0;
+    for(let j=0; j<=objNum; j++) {
+        gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),drawFlagVal);
+        for (let i = numLoaded; i < numFacesB4NextObj[j]; i++) {
+            gl.uniform4fv(gl.getUniformLocation(program, "matDiffuse"), flatten(matDiffuses[i]));
+            gl.uniform4fv(gl.getUniformLocation(program, "matSpecular"), flatten(matSpeculars[i]));
+            gl.drawArrays(gl.TRIANGLES, numDrawn, faceLengths[i]);
+            numDrawn += faceLengths[i];
         }
+        numLoaded = numFacesB4NextObj[j];
+        drawFlagVal-=1.0;
     }
-
-    vBufferCar = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vBufferCar);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(pointsArrayCar), gl.STATIC_DRAW);
-
-    gl.vertexAttribPointer(vPositionCar, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vPositionCar);
-
-    vNormalCar = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vNormalCar);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(normalsArrayCar), gl.STATIC_DRAW);
-
-    gl.vertexAttribPointer(vNormalPositionCar, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vNormalPositionCar);
-}
-function loadLamp(curObj){
-    for(let i=0; i<curObj.faces.length; i++){
-        let curFace = curObj.faces[i];
-        for(let j=0; j<curFace.faceVertices.length; j++) {
-            pointsArrayLamp.push(curFace.faceVertices[j]);
-            normalsArrayLamp.push(curFace.faceNormals[j]);
-        }
-    }
-
-    vBufferLamp = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vBufferLamp);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(pointsArrayLamp), gl.STATIC_DRAW);
-
-    gl.vertexAttribPointer(vPositionLamp, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vPositionLamp);
-
-    vNormalLamp = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vNormalLamp);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(normalsArrayLamp), gl.STATIC_DRAW);
-
-    gl.vertexAttribPointer(vNormalPositionLamp, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vNormalPositionLamp);
 }
 
-function loadStreet(curObj){
-    for(let i=0; i<curObj.faces.length; i++){
-        let curFace = curObj.faces[i];
-        for(let j=0; j<curFace.faceVertices.length; j++) {
-            pointsArrayStreet.push(curFace.faceVertices[j]);
-            normalsArrayStreet.push(curFace.faceNormals[j]);
-        }
-    }
+function loadBuffer(){
+    vBuffer = gl.createBuffer();
+    vNormalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(pointsArray), gl.STATIC_DRAW);
 
-    vBufferStreet = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vBufferStreet);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(pointsArrayStreet), gl.STATIC_DRAW);
+    gl.vertexAttribPointer(vPosition, 4, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(vPosition);
 
-    gl.vertexAttribPointer(vPositionStreet, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vPositionStreet);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vNormalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(normalsArray), gl.STATIC_DRAW);
 
-    vNormalStreet = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vNormalStreet);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(normalsArrayStreet), gl.STATIC_DRAW);
-
-    gl.vertexAttribPointer(vNormalPositionStreet, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vNormalPositionStreet);
+    gl.vertexAttribPointer(vNormalPosition, 4, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(vNormalPosition);
 }
 
-function loadBunnicula(curObj){
-    for(let i=0; i<curObj.faces.length; i++){
-        let curFace = curObj.faces[i];
-        for(let j=0; j<curFace.faceVertices.length; j++) {
-            pointsArrayBunnicula.push(curFace.faceVertices[j]);
-            normalsArrayBunnicula.push(curFace.faceNormals[j]);
-        }
+function onKeyPress(event){
+    if(event.key === 'c' || event.key === 'C'){
+        animateCamera = !animateCamera;
     }
+    else if(event.key === 'l' || event.key === 'L'){
+        if(onlyAmbient===0.0)
+            onlyAmbient = 1.0;
+        else
+            onlyAmbient = 0.0;
+        lightChange=true;
+    }
+    else if(event.key === 'm' || event.key === 'M'){
 
-    vBufferBunnicula = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vBufferBunnicula);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(pointsArrayBunnicula), gl.STATIC_DRAW);
+    }
+    else if(event.key === 'd' || event.key === 'D'){
 
-    gl.vertexAttribPointer(vPositionBunnicula, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vPositionBunnicula);
+    }
+    else if(event.key === 'r' || event.key === 'R'){
 
-    vNormalBunnicula = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vNormalBunnicula);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(normalsArrayBunnicula), gl.STATIC_DRAW);
+    }
+    else if(event.key === 's' || event.key === 'S'){
 
-    gl.vertexAttribPointer(vNormalPositionBunnicula, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vNormalPositionBunnicula);
+    }
+    else if(event.key === 'f' || event.key === 'F'){
+
+    }
 }
+
+
+
