@@ -13,6 +13,7 @@
             uniform float drawFlag;
             uniform vec4 lightPosition, lightAmbient, lightDiffuse, lightSpecular;
 
+            varying vec4 fMatDiffuse;
             varying vec3 L, N, V;
             varying float fragFlag;
             varying vec4 diffuseProduct, specularProduct, ambientProduct;
@@ -32,25 +33,16 @@
             }
 
             void main() {
-                ambientProduct = lightAmbient * vec4(0.3, 0.3, 0.3, 1.0);
+                ambientProduct = lightAmbient;
                 calculateLight();
+                fMatDiffuse = vec4(matDiffuse[0],matDiffuse[1], matDiffuse[2], matDiffuse[3]);
                 texCoords = vTexture;
                 fragFlag=drawFlag;
-                if(drawFlag == 5.0){
-                    gl_Position = projectionMatrix * modelViewMatrix * vPosition;
+                gl_Position = projectionMatrix * modelViewMatrix * vPosition;
+                if(drawFlag == 6.0){
+                 gl_Position = projectionMatrix * modelViewMatrix * vPosition;
                 }
-                if(drawFlag == 4.0){
-                    gl_Position = projectionMatrix * modelViewMatrix * vPosition;
-                }
-                if(drawFlag == 3.0){
-                    gl_Position = projectionMatrix * modelViewMatrix * vPosition;
-                }
-                if(drawFlag == 2.0){
-                   gl_Position = projectionMatrix * modelViewMatrix * vPosition;
-                }
-                if(drawFlag == 1.0){
-                    gl_Position = projectionMatrix * modelViewMatrix * vPosition;
-                }
+
             }
 
         </script>
@@ -62,6 +54,7 @@
             varying vec4 diffuseProduct, specularProduct, ambientProduct;
             varying float onlyAmbientFrag;
             varying vec2 texCoords;
+            varying vec4 fMatDiffuse;
 
             uniform sampler2D texStreet;
             uniform sampler2D texSign;
@@ -81,35 +74,38 @@
             }
 
             void main() {
+                    if(fragFlag == 6.0){
+                        gl_FragColor = ambientProduct;
+                    }
                     if(fragFlag == 5.0){
                         if(onlyAmbientFrag == 0.0)
-                            calculateAndDrawWithLight(texSign);
+                            calculateAndDrawWithLight(texStreet);
                         else
-                            gl_FragColor = textured == 0.0 ? ambientProduct: texture2D(texSign, texCoords) * ambientProduct;
+                            gl_FragColor = textured == 0.0 ? ambientProduct * fMatDiffuse: texture2D(texStreet, texCoords) * (ambientProduct * fMatDiffuse);
                     }
                     if(fragFlag == 4.0){
                         if(onlyAmbientFrag == 0.0)
                             calculateAndDrawWithLight(texStreet);
                         else
-                            gl_FragColor = textured == 0.0 ? ambientProduct: texture2D(texStreet, texCoords) * ambientProduct;
+                            gl_FragColor = textured == 0.0 ? ambientProduct * fMatDiffuse: texture2D(texStreet, texCoords) * (ambientProduct * fMatDiffuse);
                     }
                     if(fragFlag == 3.0){
                         if(onlyAmbientFrag == 0.0)
                             calculateAndDrawWithLight(texCar);
                         else
-                            gl_FragColor = textured == 0.0 ? ambientProduct: texture2D(texCar, texCoords) * ambientProduct;
+                            gl_FragColor = textured == 0.0 ? ambientProduct * fMatDiffuse: texture2D(texCar, texCoords) * (ambientProduct * fMatDiffuse);
                     }
                     if(fragFlag == 2.0){
                         if(onlyAmbientFrag == 0.0)
                             calculateAndDrawWithLight(texLamp);
                         else
-                            gl_FragColor = textured == 0.0 ? ambientProduct: texture2D(texLamp, texCoords) * ambientProduct;
+                            gl_FragColor = textured == 0.0 ? ambientProduct * fMatDiffuse: texture2D(texLamp, texCoords) * (ambientProduct * fMatDiffuse);
                     }
                     if(fragFlag == 1.0){
                         if(onlyAmbientFrag == 0.0)
                             calculateAndDrawWithLight(texBunnicula);
                         else
-                            gl_FragColor = textured == 0.0 ? ambientProduct: texture2D(texBunnicula, texCoords) * ambientProduct;
+                            gl_FragColor = textured == 0.0 ? ambientProduct * fMatDiffuse: texture2D(texBunnicula, texCoords) * (ambientProduct * fMatDiffuse);
                     }
             }
         </script>

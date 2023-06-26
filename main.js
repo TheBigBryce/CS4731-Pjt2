@@ -7,13 +7,14 @@ let numObjLoaded=0;
 let texNum=0;
 let objects = [];
 
+let shadowMatrix;
 
 let stack = [];
 
-let lightPosition = vec4(0.0, 7.0, 0.0, 1.0 );
-let lightAmbient = vec4(0.2, 0.2, 0.2, 1.0 );
-let lightDiffuse = vec4( 1.0, 1.0, 1.0, 1.0 );
-let lightSpecular = vec4( 1.0, 1.0, 1.0, 1.0 );
+let lightPosition = vec4(1.0, 10.0, 1.0, 1.0 );
+let lightAmbient = vec4(0.1, 0.1, 0.1, 1.0 );
+let lightDiffuse = vec4( 0.7, 0.7, 0.7, 1.0 );
+let lightSpecular = vec4( 0.5, 0.5, 0.5, 1.0 );
 let carRotateAngle = 0;
 
 let numLoaded = 0;
@@ -36,7 +37,7 @@ let cameraOnCar = false;
 let animateCar = false;
 let onlyAmbient = 0.0;
 let lightChange=false;
-
+let shadowOn = false;
 // Get the stop sign
 let stopSign = new Model(
     "https://web.cs.wpi.edu/~jmcuneo/cs4731/project3/stopsign.obj",
@@ -88,6 +89,10 @@ function main() {
 
     gl.enable(gl.DEPTH_TEST);
     // Initialize shaders
+    shadowMatrix= mat4();
+    shadowMatrix[3][3] = 0;
+    shadowMatrix[3][2] = -1/lightPosition[2];
+
     program = initShaders(gl, "vshader", "fshader");
     gl.useProgram(program);
 
@@ -193,7 +198,6 @@ function checkObjAndLoad(curObj, textureName, textureNum){
                     normalsArray.push(curFace.faceNormals[j]);
                     texCoords.push(curFace.faceTexCoords[j]);
                 }
-                console.log(texCoords);
                 let currentDiffuse = curObj.diffuseMap.get(curFace.material);
                 let currentSpecular = curObj.specularMap.get(curFace.material);
                 faceLengths.push(curFace.faceVertices.length);
@@ -239,7 +243,7 @@ function checkObjAndLoad(curObj, textureName, textureNum){
     }
 }
 
-function drawObj(objNum){
+function drawObj(objNum, drawFlag){
         if(objects[objNum].textured)
             gl.uniform1f(gl.getUniformLocation(program,"textured"),1.0);
         else
@@ -248,6 +252,24 @@ function drawObj(objNum){
         for (let i = numLoaded; i < numFacesB4NextObj[objNum]; i++) {
             gl.uniform4fv(gl.getUniformLocation(program, "matDiffuse"), flatten(matDiffuses[i]));
             gl.uniform4fv(gl.getUniformLocation(program, "matSpecular"), flatten(matSpeculars[i]));
+            //shadow stuff
+            if((objNum===0 || objNum === 2) && shadowOn){
+                stack.push(modelViewMatrix);
+                gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),6.0);
+
+                let modelMatrix = translate(lightPosition[0],lightPosition[1],lightPosition[2]);
+                modelMatrix = mult(modelMatrix, shadowMatrix);
+                modelMatrix = mult(modelMatrix, translate(-lightPosition[0],-lightPosition[1],-lightPosition[2]));
+
+                modelViewMatrix = mult(modelViewMatrix,modelMatrix);
+                gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix));
+                gl.drawArrays(gl.TRIANGLES, numDrawn, faceLengths[i]);
+
+                gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),drawFlag);
+                modelViewMatrix = stack.pop();
+                gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix));
+            }
+
             gl.drawArrays(gl.TRIANGLES, numDrawn, faceLengths[i]);
             numDrawn += faceLengths[i];
         }
@@ -256,25 +278,25 @@ function drawObj(objNum){
 
 function drawCar(){
     gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),3.0);
-    drawObj(2);
+    drawObj(2,3.0);
 }
 function drawBunnicula(){
     gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),1.0);
-    drawObj(3);
+    drawObj(3,1.0);
 }
 function drawSign(){
     gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),5.0);
-    drawObj(0);
+    drawObj(0,5.0);
 }
 
 function drawStreet(){
     gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),4.0);
-    drawObj(1);
+    drawObj(1,4.0);
 }
 
 function drawLamp(){
     gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),2.0);
-    drawObj(4);
+    drawObj(4,2.0);
 }
 
 function loadBuffer(){
@@ -320,7 +342,7 @@ function onKeyPress(event){
 
     }
     else if(event.key === 's' || event.key === 'S'){
-
+    shadowOn = !shadowOn;
     }
     else if(event.key === 'f' || event.key === 'F'){
 
