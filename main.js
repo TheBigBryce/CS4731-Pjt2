@@ -5,20 +5,33 @@ let numFacesB4NextObj = [];
 let numDrawn=0;
 let numObjLoaded=0;
 let texNum=0;
+let cubeNum = 0;
 let objects = [];
 
+let reflections = false;
+let refractions = false;
 let shadowMatrix;
 
+let cubeMapLoaded = false;
+
 let stack = [];
+
+let skyboxPoints = [
+
+];
+
 
 let lightPosition = vec4(1.0, 10.0, 1.0, 1.0 );
 let lightAmbient = vec4(0.1, 0.1, 0.1, 1.0 );
 let lightDiffuse = vec4( 0.7, 0.7, 0.7, 1.0 );
 let lightSpecular = vec4( 0.5, 0.5, 0.5, 1.0 );
-let carRotateAngle = 0;
+let carAngle = 0;
+let eyeAngle = 7.5;
+let atAngle = 9.5;
 
 let numLoaded = 0;
 
+let carTrans = vec3(2.9, 0.0, 0.0);
 let eye;
 let at = vec3(0.0, 0.0, 0.0);
 let up = vec3(0.0, 1.0, 0.0);
@@ -87,18 +100,21 @@ function main() {
     // Set clear color
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
-    gl.enable(gl.DEPTH_TEST);
     // Initialize shaders
     shadowMatrix= mat4();
-    shadowMatrix[3][3] = 0;
+    shadowMatrix[3][1] = 0;
     shadowMatrix[3][2] = -1/lightPosition[2];
 
     program = initShaders(gl, "vshader", "fshader");
     gl.useProgram(program);
 
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
 
 
-    eye = vec3(cameraX,cameraY+2);
+
+    eye = vec3(cameraX,cameraY+2, 0);
     modelViewMatrix = lookAt(eye, at , up);
     let fovY = 30;
     projectionMatrix = perspective(fovY,1,near,far);
@@ -125,8 +141,10 @@ function main() {
 
 let id;
 function render(){
+    let cubeMapURLs= ["https://web.cs.wpi.edu/~jmcuneo/cs4731/project2/skybox_posx.png","https://web.cs.wpi.edu/~jmcuneo/cs4731/project2/skybox_negx.png","https://web.cs.wpi.edu/~jmcuneo/cs4731/project2/skybox_posy.png","https://web.cs.wpi.edu/~jmcuneo/cs4731/project2/skybox_negy.png","https://web.cs.wpi.edu/~jmcuneo/cs4731/project2/skybox_posz.png","https://web.cs.wpi.edu/~jmcuneo/cs4731/project2/skybox_negz.png"];
+
     numDrawn=0;
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     if(lightChange){
         gl.uniform1f(gl.getUniformLocation(program, "onlyAmbient"), onlyAmbient);
         lightChange=false;
@@ -141,7 +159,9 @@ function render(){
 
 
     if(animateCar){
-        carRotateAngle-=.3;
+        eyeAngle+=.3;
+        atAngle+=.3;
+        carAngle-=.3;
     }
 
     //Load and draw all objects, only after all are loaded, so we have a consistent order
@@ -151,9 +171,22 @@ function render(){
         checkObjAndLoad(car, "texCar", gl.TEXTURE2);
         checkObjAndLoad(bunnicula, "texBunnicula", gl.TEXTURE3);
         checkObjAndLoad(lamp, "texLamp", gl.TEXTURE4);
+        if(cubeMapLoaded === false) {
+            configCubeMap(cubeMapURLs);
+            cubeMapLoaded=true;
+        }
     }
 
     if(bunnicula.loaded && stopSign.loaded && car.loaded && lamp.loaded && street.loaded) {
+
+        stack.push(modelViewMatrix);
+        if(cameraOnCar){
+            modelViewMatrix = lookAt(vec3(angleCalc(eyeAngle,"cos"),1,angleCalc(eyeAngle,"sin")),vec3(angleCalc(atAngle,"cos"),1,angleCalc(atAngle,"sin")),up);
+        }
+        else{
+            modelViewMatrix = stack.pop();
+        }
+
         numLoaded = 0;
         stack.push(modelViewMatrix);
         modelViewMatrix = mult(modelViewMatrix, translate(-.5,0,4.1));
@@ -164,18 +197,17 @@ function render(){
         gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix));
         drawStreet();
         stack.push(modelViewMatrix);
+
         modelViewMatrix = mult(modelViewMatrix, rotateY(-90));
         stack.push(modelViewMatrix);
+        modelViewMatrix = mult(modelViewMatrix, rotateY(carAngle));
+        modelViewMatrix =  mult(modelViewMatrix,translate(carTrans[0],0.0,0.0));
 
-
-        modelViewMatrix = mult(modelViewMatrix, rotateY(carRotateAngle));
-        stack.push(modelViewMatrix);
-        modelViewMatrix =  mult(modelViewMatrix,translate(2.9,0,0));
         gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix));
         drawCar();
 
-        modelViewMatrix = stack.pop();
-        modelViewMatrix = mult(modelViewMatrix, translate(2.9,.8,1.8));
+
+        modelViewMatrix = mult(modelViewMatrix, translate(0,.65,1.8));
         gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix));
         drawBunnicula();
 
@@ -184,6 +216,8 @@ function render(){
         gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix));
         drawLamp();
     }
+    if(cameraOnCar)
+        modelViewMatrix = stack.pop();
     id = requestAnimationFrame(render);
 }
 
@@ -243,7 +277,7 @@ function checkObjAndLoad(curObj, textureName, textureNum){
     }
 }
 
-function drawObj(objNum, drawFlag){
+function drawObj(objNum, drawFlag, reflect, refract){
         if(objects[objNum].textured)
             gl.uniform1f(gl.getUniformLocation(program,"textured"),1.0);
         else
@@ -269,7 +303,12 @@ function drawObj(objNum, drawFlag){
                 modelViewMatrix = stack.pop();
                 gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix));
             }
-
+            if(reflect){
+                gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),7.0);
+            }
+            if(refract){
+                gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),8.0);
+            }
             gl.drawArrays(gl.TRIANGLES, numDrawn, faceLengths[i]);
             numDrawn += faceLengths[i];
         }
@@ -278,25 +317,25 @@ function drawObj(objNum, drawFlag){
 
 function drawCar(){
     gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),3.0);
-    drawObj(2,3.0);
+    drawObj(2,3.0, reflections,false);
 }
 function drawBunnicula(){
     gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),1.0);
-    drawObj(3,1.0);
+    drawObj(3,1.0, false, refractions);
 }
 function drawSign(){
     gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),5.0);
-    drawObj(0,5.0);
+    drawObj(0,5.0, false, false);
 }
 
 function drawStreet(){
     gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),4.0);
-    drawObj(1,4.0);
+    drawObj(1,4.0, false, false);
 }
 
 function drawLamp(){
     gl.uniform1f(gl.getUniformLocation(program,"drawFlag"),2.0);
-    drawObj(4,2.0);
+    drawObj(4,2.0, false, false);
 }
 
 function loadBuffer(){
@@ -339,12 +378,15 @@ function onKeyPress(event){
         cameraOnCar = !cameraOnCar;
     }
     else if(event.key === 'r' || event.key === 'R'){
-
+        reflections = !reflections;
     }
     else if(event.key === 's' || event.key === 'S'){
-    shadowOn = !shadowOn;
+        shadowOn = !shadowOn;
     }
     else if(event.key === 'f' || event.key === 'F'){
+        refractions = !refractions;
+    }
+    else if(event.key === 'e' || event.key === 'E'){
 
     }
 }
@@ -355,7 +397,7 @@ function configTexture(imageURL,name, textureNum){
     image.src=imageURL;
     image.onload = function() {
         let tex = gl.createTexture();
-        gl.activeTexture(textureNum);
+        gl.activeTexture(textureNum|1);
         gl.bindTexture(gl.TEXTURE_2D,tex);
 
         gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
@@ -371,3 +413,56 @@ function configTexture(imageURL,name, textureNum){
     texNum++;
 }
 
+function configCubeMap(urls){
+    let images = [];
+
+    for(let i=0; i<urls.length; i++){
+        imageStuff(urls[i]);
+    }
+    function checkandLoadCubeMap(){
+        if(images.length===urls.length){
+
+            let cubeMap = gl.createTexture();
+            gl.activeTexture(gl.TEXTURE10);
+            gl.bindTexture(gl.TEXTURE_CUBE_MAP, cubeMap);
+
+            gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+            gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, images[0]);
+            gl.texImage2D(gl.TEXTURE_CUBE_MAP_NEGATIVE_X, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, images[1]);
+            gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_Y, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, images[2]);
+            gl.texImage2D(gl.TEXTURE_CUBE_MAP_NEGATIVE_Y, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, images[3]);
+            gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_Z, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, images[4]);
+            gl.texImage2D(gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, images[5]);
+
+            gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+            gl.uniform1i(gl.getUniformLocation(program, "cubeMap"), 10);
+        }
+    }
+    function imageStuff(imageURL){
+        let image = new Image();
+        image.crossOrigin="";
+        image.src=imageURL;
+
+        image.onload = function() {
+            images.push(image);
+            checkandLoadCubeMap();
+        }
+    }
+}
+
+
+function angleCalc(degrees, sinOrCosine){
+    let radians = (degrees*Math.PI)/180;
+    radians+= Math.PI/2;
+    let carPos = carTrans[0] + .4;
+    if(sinOrCosine === "sin"){
+        return carPos*Math.sin(radians);
+    }
+    if(sinOrCosine === "cos"){
+        return carPos*Math.cos(radians);
+    }
+}
