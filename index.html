@@ -8,6 +8,9 @@
             uniform vec4 matDiffuse, matSpecular;
             attribute vec2 vTexture;
 
+            attribute vec2 vTextureBox;
+            attribute vec4 vPositionBox;
+
             uniform float onlyAmbient;
             uniform mat4 projectionMatrix, modelViewMatrix;
             uniform float drawFlag;
@@ -20,6 +23,8 @@
             varying vec4 diffuseProduct, specularProduct, ambientProduct;
             varying float onlyAmbientFrag;
             varying vec2 texCoords;
+
+            varying vec2 texCoordsSky;
 
             void calculateLight(){
                 if(onlyAmbient == 0.0){
@@ -35,6 +40,7 @@
             }
 
             void main() {
+                texCoordsSky = vTextureBox;
                 ambientProduct = lightAmbient;
                 calculateLight();
                 fMatDiffuse = vec4(matDiffuse[0],matDiffuse[1], matDiffuse[2], matDiffuse[3]);
@@ -43,6 +49,9 @@
                 gl_Position = projectionMatrix * modelViewMatrix * vPosition;
                 if(drawFlag == 6.0){
                  gl_Position = projectionMatrix * modelViewMatrix * vPosition;
+                }
+                if(drawFlag == 10.0 || drawFlag == 11.0 || drawFlag == 12.0 || drawFlag == 13.0 ||drawFlag == 14.0 || drawFlag == 15.0){
+                gl_Position = projectionMatrix * modelViewMatrix * vPositionBox;
                 }
 
             }
@@ -64,11 +73,13 @@
             uniform sampler2D texCar;
             uniform sampler2D texBunnicula;
 
+            uniform sampler2D posX;
+
             uniform samplerCube cubeMap;
 
             uniform float textured;
             varying vec3 fPos;
-
+            varying vec2 texCoordsSky;
 
             void calculateAndDrawWithLight(sampler2D texture){
                 vec4 diffuse = diffuseProduct * dot(L, N);
@@ -130,6 +141,24 @@
                             calculateAndDrawWithLight(texBunnicula);
                         else
                             gl_FragColor = textured == 0.0 ? ambientProduct * fMatDiffuse: texture2D(texBunnicula, texCoords) * (ambientProduct * fMatDiffuse);
+                    }
+                    if(fragFlag==10.0){
+                        gl_FragColor = vec4(1.0,0.0,1.0,1.0);
+                    }
+                    if(fragFlag==11.0){
+                        gl_FragColor = vec4(1.0,1.0,0.0,1.0);
+                    }
+                    if(fragFlag==12.0){
+                        gl_FragColor = vec4(0.0,1.0,1.0,1.0);
+                    }
+                    if(fragFlag==13.0){
+                        gl_FragColor = vec4(0.5,.5,1.0,1.0);
+                    }
+                    if(fragFlag==14.0){
+                        gl_FragColor = vec4(1.0,0.5,0.5,1.0);
+                    }
+                    if(fragFlag==15.0){
+                        gl_FragColor = vec4(1.0,1.0,0.5,1.0);
                     }
             }
         </script>
